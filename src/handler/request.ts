@@ -76,12 +76,38 @@ export async function RequestHandler({ response }: { response: HonoRequest }) {
       // Regular expression to match the last segment of the URL
       const regex = /\/[^\/]*$/;
       const urlRegex = /^(?:(?:(?:https?|ftp):)?\/\/)[^\s/$.?#].[^\s]*$/i;
+      const jpgRegex = /.+?\.(jpg)+/g;
       const m3u8FileChunks = responseBody.split("\n");
       const m3u8AdjustedChunks = [];
 
       for (const line of m3u8FileChunks) {
         if (line.startsWith("#") || !line.trim()) {
-          m3u8AdjustedChunks.push(line);
+          // Check if this line contains any JPG references
+          if (line.match(jpgRegex)) {
+            const matches = [...line.matchAll(jpgRegex)];
+            let modifiedLine = line;
+            
+            for (const match of matches) {
+              const filename = match[0];
+              // Determine if the JPG is a full URL or a relative path
+              if (filename.match(urlRegex)) {
+                modifiedLine = modifiedLine.replace(
+                  filename,
+                  `/fetch?url=${encodeURIComponent(filename)}${refString}`
+                );
+              } else {
+                // Handle relative path
+                const newUrl = url.replace(/\/[^\/]*$/, `/${filename}`);
+                modifiedLine = modifiedLine.replace(
+                  filename,
+                  `/fetch?url=${encodeURIComponent(newUrl)}${refString}`
+                );
+              }
+            }
+            m3u8AdjustedChunks.push(modifiedLine);
+          } else {
+            m3u8AdjustedChunks.push(line);
+          }
           continue;
         }
 
